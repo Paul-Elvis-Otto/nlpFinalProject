@@ -9,33 +9,26 @@ bibliography: references.bib
 
 ## Intro
 
+Classifying tweets is among the most common applications of machine learning. This project focuses on distinguishing whether a tweet from the 112th U.S. Congress was authored by a Democrat or a Republican. The dataset, sourced from the Harvard Dataverse, includes the text of each post, information on its author, party affiliation, and whether it originated from the House or the Senate.
 
-Classifiying tweets is probably one the most done tasks in machine learining. This project classifiest tweets of the 112th congres into either being macde by a democrat or a republican. The dataset is taken from the harvard dataverse and contains the posts themself, the author of it, the party affiliation and whether the post was made in the house or the senate.
+The classification task is carried out using a bidirectional LSTM model, described in detail in the model section. The model is trained from scratch without any pretraining, relying on pretrained embeddings imported via the MLX-Embeddings adaptation from huggingface. As a baseline, a naive Bayes classifier is implemented, and its performance is compared to the BiLSTM in the empirical assessment section.
 
-For the classficiaitn task a bidirectional LSTM has been used, which is described in the model section. The model is trained from scratch without any pretraining. For the classification embeddings are used which have been imported from huggingface. As a baseliune a naive bayes classifier has been used the comparison is shown in the empirical assessment section.
-
-To get an overall impression of the dataset an EDA has been performed, which is shown in @sec-eda.
-
-The dataset has been cleaned for the processing by the BILSTM, more detail in @sec-data-prep.
-
+To provide a general overview of the data, an exploratory analysis is presented in @sec-eda. The dataset has also been cleaned and prepared specifically for the BiLSTM model, with the cleaning steps detailed in @sec-data-prep.
 
 
 ## Data Preparation {#sec-data-prep}
 
-To make the data workable and not conditionn on things like dates, mentios or links the posts each have been cleaned from that with the help of different regexes. The script to cleaning can be view in the repository of the model. The scope of the cleanned data is as follwos:
+To ensure the data is usable and not influenced by elements such as dates, mentions, or links, each post was cleaned using a set of regular expressions. The cleaning script is available in the model’s repository. The cleaned dataset excludes the following:
 
-- DAtes removed
-- Mentions removed
-- Hashtags removed
-
-
+* Dates
+* Mentions
+* Hashtags
 
 
 
 ## EDA {#sec-eda}
 
-To give an insisht into the dataset first there are some basic metrics
-
+This section provides an initial overview of the dataset by examining its basic structure and several descriptive metrics.
 
 ```{r}
 library(dplyr)
@@ -44,12 +37,7 @@ df <- read.csv("./data/congress_complete_clean.csv")
 shape <- dim(df)
 ```
 
-
-The dataset has the shape of `{r} shape` and the posts are distributed as follows:
-
-The overall distribution of posts by chamber and party is shown in @fig-post-dist . 
-
-
+The dataset has a dimension of `{r} shape`. To begin, we look at how posts are distributed across chambers and parties. The overall distribution is visualized in @fig-post-dist.
 
 ```{r}
 #| label: fig-post-dist
@@ -67,8 +55,7 @@ ggplot(df_counts, aes(x = organ, y = n, fill = party)) +
   theme_classic()
 ```
 
-
-In totatl numbers the posts per party are as follows:
+A more detailed breakdown of total posts per chamber and party is provided in the table below:
 
 ```{r}
 #| label: post-total-n
@@ -95,9 +82,7 @@ df_table %>%
   )
 ```
 
-
-The distribution of post lengths is as follows:
-
+Next, the distribution of post lengths is examined. To limit the influence of outliers, the top one percent of longest posts are excluded:
 
 ```{r}
 library(dplyr)
@@ -114,7 +99,7 @@ df_clean <- df %>%
 ggplot(df_clean, aes(x = party, y = length, fill = party)) +
   geom_violin(trim = TRUE) +
   facet_wrap(~organ) +
-  coord_cartesian(ylim = c(0, 200)) + # set y-axis range
+  coord_cartesian(ylim = c(0, 200)) +
   labs(
     x = "Party",
     y = "Post length",
@@ -124,17 +109,16 @@ ggplot(df_clean, aes(x = party, y = length, fill = party)) +
   theme(legend.position = "none")
 ```
 
-
-The top posters in the dataset: 
+The dataset also allows identifying the most active members. The figure below displays the top five posters for each chamber–party combination:
 
 ```{r}
 library(dplyr)
 library(ggplot2)
 
 df_top <- df %>%
-  count(organ, party, member, name = "posts") %>% # count posts
-  group_by(organ, party) %>% # group by chamber + party
-  slice_max(order_by = posts, n = 5, with_ties = FALSE) %>% # keep top 5 only
+  count(organ, party, member, name = "posts") %>%
+  group_by(organ, party) %>%
+  slice_max(order_by = posts, n = 5, with_ties = FALSE) %>%
   ungroup()
 
 ggplot(df_top, aes(x = reorder(member, posts), y = posts, fill = party)) +
@@ -150,9 +134,7 @@ ggplot(df_top, aes(x = reorder(member, posts), y = posts, fill = party)) +
   theme(legend.position = "none")
 ```
 
-
-Some word frequencies by party
-
+Finally, the most frequent words used by each party are explored. After tokenizing posts, removing stopwords, and excluding a small set of custom stop terms, the top twenty terms per party are identified:
 
 ```{r}
 library(dplyr)
@@ -160,10 +142,8 @@ library(tidytext)
 library(ggplot2)
 library(stringr)
 
-# optional: custom stopwords
 custom_stop <- tibble(word = c("rt"))
 
-# prepare word frequencies
 df_words <- df %>%
   mutate(post = str_to_lower(post)) %>%
   unnest_tokens(word, post) %>%
@@ -172,7 +152,6 @@ df_words <- df %>%
   filter(word != "") %>%
   count(party, word, sort = TRUE)
 
-# select top N words per party
 top_n_words <- 20
 
 df_top <- df_words %>%
@@ -180,7 +159,6 @@ df_top <- df_words %>%
   slice_max(order_by = n, n = top_n_words) %>%
   ungroup()
 
-# plot side-by-side word frequency charts
 ggplot(df_top, aes(x = reorder_within(word, n, party), y = n, fill = party)) +
   geom_col() +
   coord_flip() +
@@ -196,126 +174,97 @@ ggplot(df_top, aes(x = reorder_within(word, n, party), y = n, fill = party)) +
 ```
 
 
-
 ## Model specification
 
+### Tokenization and feature extraction
 
+The input pipeline leverages a pre-trained Transformer model, specifically `all-MiniLM-L6-v2`, to generate contextualized semantic features. Unlike traditional pipelines that feed token IDs directly to the classifier, this architecture utilizes the Transformer as a frozen feature extractor.
 
-### Tokenization and inputs
-
-
-Each text is mapped to a fixed-length sequence of subword token identifiers using a WordPiece-style tokenizer with vocabulary size $V$. After padding or truncation to length $T=128$, each sample is represented by:
-
-$$
-\mathbf{t}=(t_1,\dots,t_T),\quad t_i \in \{1,\dots,V\},
-$${#eq-token-seq}
-
-and a binary mask
+Raw text is tokenized and padded to a fixed sequence length $T=128$. Let $\mathbf{t}$ be the sequence of token identifiers. These are passed through the quantized (4-bit) Transformer model $\mathcal{F}$ to yield a sequence of dense vectors:
 
 $$
-\mathbf{m}=(m_1,\dots,m_T),\quad m_i\in\{0,1\},
-$${#eq-mask-seq}
+\mathbf{X} = \mathcal{F}(\mathbf{t}) \in \mathbb{R}^{T \times D},
+$${#eq-transformer-out}
 
-where $m_i=1$ indicates a true token and $m_i=0$ indicates padding. The tokenizer is used only to obtain indices; semantic representations are learned by the network.
-
-
-### Trainable embedding layer
-
-Let $E\in\mathbb{R}^{V\times d}$ be the embedding matrix with $d=200$. Tokens are embedded as
+where $D$ is the embedding dimension (inferred from the Transformer output, typically 384 for MiniLM). Crucially, a stop-gradient operation is applied to $\mathbf{X}$:
 
 $$
-\mathbf{x}_i = E[t_i]\in\mathbb{R}^{d},
-\quad
-\mathbf{X}=(\mathbf{x}_1,\dots,\mathbf{x}_T)\in\mathbb{R}^{T\times d}.
-$${#eq-embed-seq}
+\mathbf{X}_{\text{fixed}} = \text{StopGradient}(\mathbf{X}),
+$${#eq-stop-grad}
 
-The padding index is set so that padded positions do not update embeddings.
+ensuring that gradients are not backpropagated into the Transformer layers, treating the embeddings as static inputs to the downstream LSTM.
 
 ### Bidirectional LSTM encoder
 
-A forward LSTM and a backward LSTM encode $\mathbf{X}$. For a single LSTM direction, gates and state updates at timestep $i$ are:
+A custom implementation of a Bidirectional LSTM is employed to model the temporal dependencies within the sequence of embeddings $\mathbf{X}_{\text{fixed}}$.
+
+The architecture consists of two independent LSTM layers: a forward pass ($\overrightarrow{\text{LSTM}}$) and a backward pass ($\overleftarrow{\text{LSTM}}$). For a single direction, the state update at timestep $t$, given input $\mathbf{x}_t$ and previous hidden state $\mathbf{h}_{t-1}$, is governed by the standard gate equations:
 
 $$
 \begin{align}
-\mathbf{i}_i &= \sigma(W_i\mathbf{x}_i + U_i\mathbf{h}_{i-1} + \mathbf{b}_i), \\
-\mathbf{f}_i &= \sigma(W_f\mathbf{x}_i + U_f\mathbf{h}_{i-1} + \mathbf{b}_f), \\
-\mathbf{o}_i &= \sigma(W_o\mathbf{x}_i + U_o\mathbf{h}_{i-1} + \mathbf{b}_o), \\
-\tilde{\mathbf{c}}_i &= \tanh(W_c\mathbf{x}_i + U_c\mathbf{h}_{i-1} + \mathbf{b}_c), \\
-\mathbf{c}_i &= \mathbf{f}_i\odot \mathbf{c}_{i-1} + \mathbf{i}_i\odot \tilde{\mathbf{c}}_i, \\
-\mathbf{h}_i &= \mathbf{o}_i\odot \tanh(\mathbf{c}_i),
+\mathbf{i}_t &= \sigma(W_i\mathbf{x}_t + U_i\mathbf{h}_{t-1} + \mathbf{b}_i) \\
+\mathbf{f}_t &= \sigma(W_f\mathbf{x}_t + U_f\mathbf{h}_{t-1} + \mathbf{b}_f) \\
+\mathbf{o}_t &= \sigma(W_o\mathbf{x}_t + U_o\mathbf{h}_{t-1} + \mathbf{b}_o) \\
+\mathbf{g}_t &= \tanh(W_g\mathbf{x}_t + U_g\mathbf{h}_{t-1} + \mathbf{b}_g) \\
+\mathbf{c}_t &= \mathbf{f}_t \odot \mathbf{c}_{t-1} + \mathbf{i}_t \odot \mathbf{g}_t \\
+\mathbf{h}_t &= \mathbf{o}_t \odot \tanh(\mathbf{c}_t)
 \end{align}
 $${#eq-lstm-gates}
 
-with sigmoid $\sigma(\cdot)$ and elementwise product $\odot$. The hidden size is $H=128$ per direction. The bidirectional representation at position $i$ is
+where $\sigma$ is the sigmoid function and $\odot$ is the Hadamard product. The hidden state dimension is $H=128$. The backward LSTM processes the sequence in reverse order. The final representation at each timestep is the concatenation of both directional states:
 
 $$
-\mathbf{h}_i = [\overrightarrow{\mathbf{h}}_i ; \overleftarrow{\mathbf{h}}_i] \in \mathbb{R}^{2H},
-$${#eq-bilstm-concat}
-
-yielding a sequence output
-
-$$
-\mathbf{H}=(\mathbf{h}_1,\dots,\mathbf{h}_T)\in\mathbb{R}^{T\times 2H}.
-$${#eq-seq-output}
+\mathbf{h}_t = [\overrightarrow{\mathbf{h}}_t ; \overleftarrow{\mathbf{h}}_t] \in \mathbb{R}^{2H}.
+$${#eq-bilstm-out}
 
 ### Masked mean pooling
 
-
-To obtain a fixed-dimensional vector while excluding padding, the model computes:
+To handle the padding artifacts present in the fixed-length sequences, a masked mean pooling operation is applied. Let $\mathbf{m} \in \{0, 1\}^T$ be the attention mask where $1$ denotes a valid token. The fixed-size sentence representation $\mathbf{z}$ is computed as:
 
 $$
-\mathbf{z}=
-\frac{\sum_{i=1}^{T} m_i \mathbf{h}_i}
-{\sum_{i=1}^{T} m_i + \varepsilon}
-\in\mathbb{R}^{2H},
-$${#eq-fix-dim-vex}
+\mathbf{z} = \frac{\sum_{t=1}^{T} m_t \mathbf{h}_t}{\sum_{t=1}^{T} m_t + \epsilon} \in \mathbb{R}^{2H},
+$${#eq-masked-pool}
 
-where $\varepsilon$ is a small constant to avoid division by zero.
+where $\epsilon = 10^{-6}$ ensures numerical stability. This collapses the temporal dimension, resulting in a single vector capturing the global context of the post.
 
 ### Classification head
-Dropout is applied to $\mathbf{z}$ with probability $p=0.2$:
+
+The pooled vector $\mathbf{z}$ serves as the input to the classification head. Regularization is applied via Dropout with probability $p=0.2$:
 
 $$
-\tilde{\mathbf{z}}=\mathrm{Dropout}(\mathbf{z}).
-$$
+\tilde{\mathbf{z}} = \text{Dropout}(\mathbf{z}).
+$${#eq-dropout}
 
-A linear layer produces logits:
-
-$$
-\mathbf{o}=W\tilde{\mathbf{z}}+\mathbf{b}\in\mathbb{R}^{2}.
-$$
-
-The predictive distribution is
+A linear projection layer maps the features to the unnormalized logits for the two classes:
 
 $$
-\hat{\mathbf{y}}=\mathrm{softmax}(\mathbf{o}),
-\qquad
-\hat{y}=\arg\max_{k\in\{0,1\}} \hat{\mathbf{y}}_k.
-$$
+\mathbf{o} = W_{out}\tilde{\mathbf{z}} + \mathbf{b}_{out} \in \mathbb{R}^2.
+$${#eq-linear-head}
+
+The predicted class $\hat{y}$ is derived via the argmax of the logits.
 
 ### Training objective
 
-Parameters $\theta$ are learned by minimizing the cross-entropy loss:
-
+The model is trained using the Cross-Entropy loss function. For a batch of $N$ samples, the objective is to minimize:
 
 $$
-\mathcal{L}(\theta)
--\frac{1}{N}
-\sum_{n=1}^{N}
-\log \hat{\mathbf{y}}^{(n)}_{y^{(n)}}.
-$$
+\mathcal{L} = \frac{1}{N} \sum_{i=1}^{N} \text{CrossEntropy}(\mathbf{o}^{(i)}, y^{(i)}).
+$${#eq-jross-entropy}
 
-Optimization uses AdamW with learning rate $10^{-3}$. Mixed-precision training (automatic casting to FP16 with dynamic gradient scaling) is employed to improve throughput and numerical stability on modern GPUs.
+Optimization is performed using the **Adam** optimizer with a learning rate $\eta = 10^{-3}$. The training step, including the loss calculation and gradient update, is Just-In-Time (JIT) compiled into a comprehensive computation graph using `mx.compile` to maximize execution speed.
 
 ### Computational considerations
-For each batch, the dominant cost arises from the BiLSTM. For sequence length $T$ and hidden size $H$, time complexity scales as $\mathcal{O}(T\cdot H^2)$ per direction, and memory scales as $\mathcal{O}(T\cdot H)$ for storing activations. Fixing $T=128$ stabilizes runtime and enables cuDNN kernel autotuning.
 
+The implementation is optimized for Apple Silicon using the MLX framework. Several specific strategies are employed for efficiency:
+
+1.  **Lazy Evaluation & Materialization:** MLX uses lazy evaluation. To prevent the computation graph from growing indefinitely during the iterative data loading process, `mx.eval` is explicitly called on batch inputs and loss values to force materialization.
+2.  **Quantized Feature Extraction:** The embedding model (`all-MiniLM-L6-v2`) utilizes 4-bit quantization, significantly reducing memory bandwidth requirements during the feature extraction phase.
+3.  **Precision:** The embeddings are cast to `float16` (`mx.float16`) before entering the LSTM, halving the memory footprint of the batch tensor compared to `float32` and leveraging the hardware's native half-precision performance.
 
 ## Implementation details
 
 ### Environment and reproducibility
 
-Training is performed on CUDA hardware with cuDNN benchmarking activated, selecting optimized kernels for the fixed tensor shapes. Random seeds are set for Python, NumPy, and PyTorch (CPU and GPU) to reduce run-to-run variation.
 
 ## Data Pipeline
 The pipeline proceeds as:
@@ -340,6 +289,121 @@ The training routine iterates for 10 epochs. Each epoch consists of:
 Model selection is based on validation accuracy; the best validation checkpoint is stored and reloaded before final test evaluation. DataLoaders use batch size $256$ with pinned memory and persistent workers for efficient host-device transfer.
 
 
+### Implementation in Code
+
+The biLStM model has been in apples mlx framework to enable a bare metal run of the model on apple silicon hardware. The implementation has ben performd on top of the mlx framework provided `nn.Model` function.
+
+
+for that a LSTM cell has been set up as follows
+
+```{{python}}
+class LSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.xh_to_gates = nn.Linear(input_size + hidden_size, 4 * hidden_size)
+
+    def __call__(self, x_t, state):
+        h_prev, c_prev = state
+        xh = mx.concatenate([x_t, h_prev], axis=-1)
+        gates = self.xh_to_gates(xh)
+        i, f, o, g = mx.split(gates, 4, axis=-1)
+
+        i = mx.sigmoid(i)
+        f = mx.sigmoid(f)
+        o = mx.sigmoid(o)
+        g = mx.tanh(g)
+
+        c_t = f * c_prev + i * g
+        h_t = o * mx.tanh(c_t)
+        return h_t, c_t
+```
+
+Used in a single lstm model as follows:
+
+```{{python}}
+class LSTM(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.cell = LSTMCell(input_size, hidden_size)
+
+    def __call__(self, x):
+        B, T, _ = x.shape
+        h = mx.zeros((B, self.hidden_size), dtype=mx.float32)
+        c = mx.zeros((B, self.hidden_size), dtype=mx.float32)
+
+        outputs = []
+        for t in range(T):
+            h, c = self.cell(x[:, t, :], (h, c))
+            outputs.append(h)
+
+        return mx.stack(outputs, axis=1), (h, c)
+
+```
+
+And finally the bidirectional lstm is set up along the text classification:
+
+```{{python}}
+
+class BiLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.fwd = LSTM(input_size, hidden_size)
+        self.bwd = LSTM(input_size, hidden_size)
+
+    def __call__(self, x):
+        B, T, _ = x.shape
+
+        fwd_out, _ = self.fwd(x)
+
+        rev_idx = mx.arange(T - 1, -1, -1, dtype=mx.int32)
+        x_rev = mx.take(x, rev_idx, axis=1)
+
+        bwd_out_rev, _ = self.bwd(x_rev)
+        bwd_out = mx.take(bwd_out_rev, rev_idx, axis=1)
+
+        return mx.concatenate([fwd_out, bwd_out], axis=-1)  # (B, T, 2H)
+
+
+class BiLSTMTextClassifier(nn.Module):
+    def __init__(self, embedding_dim, hidden_size, num_classes, dropout=0.1):
+        super().__init__()
+        self.bilstm = BiLSTM(embedding_dim, hidden_size)
+        self.dropout = nn.Dropout(dropout)
+        self.head = nn.Linear(2 * hidden_size, num_classes)
+
+    def pool(self, seq_out, mask):
+        mask_f = mask.astype(mx.float32)[..., None]
+        summed = mx.sum(seq_out * mask_f, axis=1)
+        denom = mx.maximum(mx.sum(mask_f, axis=1), 1e-6)
+        return summed / denom
+
+    def __call__(self, x, mask):
+        # zero out padding before recurrence
+        x = x * mask.astype(mx.float32)[..., None]
+        seq_out = self.bilstm(x)
+        pooled = self.pool(seq_out, mask)
+        pooled = self.dropout(pooled)
+        return self.head(pooled)
+
+
+```
+
+To use the framework to it's full poterntial the model its is compiled
+
+```{{python}}
+@partial(mx.compile, inputs=state, outputs=state)
+def step(Xb, yb, Mb):
+    loss, grads = loss_and_grad(model, Xb, yb, Mb)
+    optimizer.update(model, grads)
+    return loss
+
+```
+
+The description of the loss function is omitted but can be found in the complete code in the repository
+
+
 ## Naive Bayes Baseline {#sec-nbb}
 
 As a classical probabilistic benchmark, a Naive Bayes classifier is employed alongside the neural sequence model. To ensure comparability, all preprocessing steps prior to feature extraction—data cleaning, label normalization, and the exact train/validation/test split—are identical to those used for the BiLSTM classifier.
@@ -349,7 +413,7 @@ As a classical probabilistic benchmark, a Naive Bayes classifier is employed alo
 In contrast to the sequence-based neural architecture, the Naive Bayes model operates on a sparse bag-of-ngrams representation of the text. Each document $x$ is mapped to a TF–IDF feature vector
 $$
 \mathbf{f}(x) = (f_1, f_2, \ldots, f_d),
-$$
+$${#eq-eq-tfidf}
 
 where each $f_j$ reflects the TF–IDF weight of term $j$ after vocabulary truncation and filtering. The vectorizer uses standard preprocessing settings for text classification:
 
@@ -366,7 +430,7 @@ p(\mathbf{f}(x)\mid y=k)
 ;\propto;
 \prod_{j=1}^{d}
 \theta_{kj}^{, f_j(x)},
-$$
+$${#eq-nb-likelihood}
 
 where $\theta_{kj}$ are class-conditional feature probabilities estimated from the training set. Bayes’ rule then yields the posterior
 
@@ -374,17 +438,120 @@ $$
 p(y=k \mid x)
 ;\propto;
 p(y=k)\prod_{j=1}^{d}\theta_{kj}^{, f_j(x)},
-$$
+$${#eq-nb-posterior}
 
 and prediction is made via
 
 $$
 \hat{y} = \arg\max_{k\in{0,1}} p(y=k\mid x).
-$$
+$${#eq-nb-prediction}
 
 Although the multinomial model is derived for count data, it is widely used with TF–IDF features and remains a strong linear baseline in high-dimensional text classification.
 
-### Baseline evaluation
+
+## Empirical Assessments
+
+The following section will show the outcomes of the different test summaries of the used Models, bilstm, and naive bayes
+
+### BILSTM
+
+#### Headline results
+
+
+On the test partition, the model achieves:
+
+$$
+\text{Test loss}=0.3307,\qquad
+\text{Test accuracy}=0.8635.
+$$
+
+
+The closeness of validation-selected performance and test performance indicates stable generalization without severe overfitting.
+
+#### Class-wise metrics
+
+```{r}
+library(tibble)
+
+clsrep <- tribble(
+  ~Class,
+  ~Precision,
+  ~Recall,
+  ~F1,
+  ~Support,
+  "0",
+  0.7621,
+  0.6748,
+  0.7158,
+  12729,
+  "1",
+  0.8121,
+  0.8697,
+  0.8399,
+  20573,
+  "Accuracy",
+  NA,
+  NA,
+  0.7952,
+  33302,
+  "Macro avg",
+  0.7871,
+  0.7723,
+  0.7779,
+  33302,
+  "Weighted avg",
+  0.7930,
+  0.7952,
+  0.7925,
+  33302
+)
+
+library(knitr)
+kable(clsrep, caption = "Test-set classification report.")
+
+test_acc_lstm <- 0.7952074950453426
+test_loss_lstm <- 0.5228507898691046
+```
+
+Performance is stronger for class $1$, consistent with its higher prevalence. The macro-averaged F$_1$ is slightly lower than the weighted average, reflecting imbalance-driven asymmetry.
+
+The overall Test accuracy is `{r} test_acc_lstm` and the overall Test loss `{r} test_loss_lstm`.
+
+
+#### Confusion matrix and derived rates
+
+$$
+\mathbf{C}=
+\begin{pmatrix}
+8590 & 4139\\
+2681 & 17892
+\end{pmatrix}.
+$$
+
+Key derived quantities (treating class $1$ as positive) are:
+
+$$
+\begin{align}
+\text{TPR (recall$_1$)} &= \frac{18666}{18666+2025}=0.9021, \\
+\text{TNR (specificity)} &= \frac{10226}{10226+2544}=0.8008, \\
+\text{FPR} &= \frac{2544}{10226+2544}=0.1992, \\
+\text{FNR} &= \frac{2025}{18666+2025}=0.0979, \\
+\text{Balanced accuracy} &= \frac{0.9021+0.8008}{2}=0.8515, \\
+\text{MCC} &= 0.7088.
+\end{align}
+$$
+
+#### Error profile
+
+Inspection of the confusion matrix suggests two dominant error types:
+
+- Class-0 $\rightarrow$ Class-1 errors (2544 cases) likely driven by lexical overlap or stylistic convergence in the two parties’ rhetoric, aggravated by class imbalance.
+
+- Class-1 $\rightarrow$ Class-0 errors (2025 cases) fewer and may correspond to moderate or cross-partisan language patterns.
+
+The false-positive rate is roughly twice the false-negative rate, indicating that the classifier is more inclined to assign class 1 to items belonging to class 0 than the reverse. In scenarios where asymmetric error costs matter, this imbalance could be mitigated through threshold tuning, class-weighted loss functions, or calibration techniques.
+
+### Naive Bayes Baseline
 
 Evaluated on the held-out test set, the Naive Bayes classifier achieves an accuracy of
 
@@ -417,109 +584,55 @@ reveals that false positives for class 1 (3171 cases) are moderately higher than
 Overall, the Naive Bayes baseline provides a meaningful reference point: it captures strong lexical signals and performs well with minimal computational cost, yet falls short of the sequence model in reducing class-specific error rates and balancing performance across labels.
 
 
-## Empirical Assessments
-
-
-
-### Headline results
-
-
-On the test partition, the model achieves:
-
-$$
-\text{Test loss}=0.3307,\qquad
-\text{Test accuracy}=0.8635.
-$$
-
-
-The closeness of validation-selected performance and test performance indicates stable generalization without severe overfitting.
-
-### Class-wise metrics
+the model can be evaluated as follows:
 
 ```{r}
 library(tibble)
 
-library(tibble)
-
-clsrep <- tribble(
+nb <- tribble(
   ~Class,
   ~Precision,
   ~Recall,
   ~F1,
   ~Support,
   "0",
-  0.8347,
-  0.8008,
-  0.8174,
-  12770,
+  0.7698,
+  0.6214,
+  0.6877,
+  12729,
   "1",
-  0.8801,
-  0.9021,
-  0.8910,
-  20691,
+  0.7907,
+  0.8850,
+  0.8352,
+  20573,
   "Accuracy",
-  0.8635,
   NA,
   NA,
-  33461,
+  0.7843,
+  33302,
   "Macro avg",
-  0.8574,
-  0.8515,
-  0.8542,
-  33461,
+  0.7803,
+  0.7532,
+  0.7615,
+  33302,
   "Weighted avg",
-  0.8627,
-  0.8635,
-  0.8629,
-  33461
+  0.7827,
+  0.7843,
+  0.7788,
+  33302
 )
 
 library(knitr)
-kable(clsrep, caption = "Test-set classification report.")
+kable(nb, caption = "Test-set classification report.")
 ```
 
-Performance is stronger for class $1$, consistent with its higher prevalence. The macro-averaged F$_1$ is slightly lower than the weighted average, reflecting imbalance-driven asymmetry.
 
-
-### Confusion matrix and derived rates
-
-$$
-\mathbf{C}=
-\begin{pmatrix}
-10226 & 2544\\
-2025 & 18666
-\end{pmatrix}.
-$$
-
-Key derived quantities (treating class $1$ as positive) are:
-
-$$
-\begin{align}
-\text{TPR (recall$_1$)} &= \frac{18666}{18666+2025}=0.9021, \\
-\text{TNR (specificity)} &= \frac{10226}{10226+2544}=0.8008, \\
-\text{FPR} &= \frac{2544}{10226+2544}=0.1992, \\
-\text{FNR} &= \frac{2025}{18666+2025}=0.0979, \\
-\text{Balanced accuracy} &= \frac{0.9021+0.8008}{2}=0.8515, \\
-\text{MCC} &= 0.7088.
-\end{align}
-$$
-
-### Error profile
-
-Inspection of the confusion matrix suggests two dominant error types:
-
-- Class-0 $\rightarrow$ Class-1 errors (2544 cases) likely driven by lexical overlap or stylistic convergence in the two parties’ rhetoric, aggravated by class imbalance.
-
-- Class-1 $\rightarrow$ Class-0 errors (2025 cases) fewer and may correspond to moderate or cross-partisan language patterns.
-
-Given that embeddings are learned from scratch, the model relies heavily on dataset-specific word usage rather than external semantic priors, which can increase confusion in stylistically similar texts.
-
-
-The false-positive rate is about twice the false-negative rate, showing that the classifier is more prone to labeling class-$0$ items as class $1$ than vice versa. In applications where mislabeling class $0$ has higher cost, this skew may require threshold adjustment or reweighting.
 
 ### Comparative perspective
 
-A BiLSTM with masked pooling is a strong sequential baseline. However, architectures initialized with pretrained contextual encoders typically outperform purely task-trained embeddings on political text tasks because they embed broader semantic and syntactic regularities. The present performance indicates that the dataset is large enough to train effective representations, but also hints at a ceiling imposed by the lack of pretrained knowledge.
+To analyse whether there is a improvement of the BiLSTM over the Naive Bayes model,  a side-by-side comparison of key metrics in @tbl-comp is presented
+
+A BiLSTM with masked pooling forms a strong sequential baseline, especially when combined with pretrained subword embeddings. Pretrained embeddings provide stable lexical and subword representations, reducing the burden on the model to learn low-level statistics from scratch. However, these embeddings are not contextual: they do not adapt representations based on surrounding tokens. As a result, the model cannot capture the full range of contextual nuances that transformer-based encoders provide. The observed performance suggests that pretrained embeddings are beneficial, but the absence of contextualization imposes an upper bound compared with modern transformer architectures.
 
 
 
@@ -533,69 +646,12 @@ library(gt)
 # 1. Setup Data -----------------------------------------------------------
 # (Same data setup as before)
 
-bilstm <- tribble(
-  ~Class,
-  ~Precision,
-  ~Recall,
-  ~F1,
-  ~Support,
-  "0",
-  0.8347,
-  0.8008,
-  0.8174,
-  12770,
-  "1",
-  0.8801,
-  0.9021,
-  0.8910,
-  20691,
-  "Accuracy",
-  0.8635,
-  NA,
-  NA,
-  33461,
-  "Macro avg",
-  0.8574,
-  0.8515,
-  0.8542,
-  33461,
-  "Weighted avg",
-  0.8627,
-  0.8635,
-  0.8629,
-  33461
-)
-
-nb <- tribble(
-  ~Precision,
-  ~Recall,
-  ~F1,
-  ~Support,
-  0.8258,
-  0.7517,
-  0.7870,
-  12770,
-  0.8548,
-  0.9021,
-  0.8778,
-  20691,
-  0.8447,
-  NA,
-  NA,
-  33461,
-  0.8403,
-  0.8269,
-  0.8324,
-  33461,
-  0.8437,
-  0.8447,
-  0.8432,
-  33461
-) %>%
-  mutate(Class = bilstm$Class)
+nb %>%
+  mutate(Class = clsrep$Class) %>%
+  invisible()
 
 # Merge data wide
-df_wide <- bilstm %>%
+df_wide <- clsrep %>%
   rename_with(~ paste0(., "_BiLSTM"), -Class) %>%
   left_join(nb %>% rename_with(~ paste0(., "_NB"), -Class), by = "Class")
 
@@ -685,29 +741,6 @@ df_wide %>%
 ```
 
 
-## Limitations and possible extensions
-
-
-### Limitations
-
-
-
-- **No pretrained representations:** learning $E$ from scratch can underutilize semantic information that pretrained models capture.
-- **Fixed truncation length:** texts longer than 128 tokens lose tail content, potentially discarding discriminative cues.
-- **Moderate imbalance:** the decision boundary shifts toward class $1$, as seen in higher FPR.
-- **Pooling simplicity:** mean pooling assumes equal importance of token positions and may dilute localized signals.
-
-
-
-### Extensions
-
-Several modifications could plausibly improve accuracy or reduce skew:
-
-- **Class-weighted loss:** set weights $w_0,w_1$ in cross-entropy to penalize minority errors more.
-- **Pretrained encoder swap:** replace the embedding+BiLSTM block with a frozen or fine-tuned transformer encoder while keeping masked pooling and the head.
-- **Attention pooling:** learn token weights $\alpha_i$ to compute $\mathbf{z}=\sum_i \alpha_i \mathbf{h}_i$ with masking.
-- **Longer or adaptive $T$:** increase $T$ or bucket by length to preserve more context without undue padding cost.
-- **Calibration and thresholding:** tune the probability cutoff using validation curves to trade off FPR vs.\ FNR for downstream objectives.
 
 
 ## Conclusion
