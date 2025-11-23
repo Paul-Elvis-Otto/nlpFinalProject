@@ -1,0 +1,4 @@
+/.quarto/
+renv/
+.python-version
+**/.DS_Store
