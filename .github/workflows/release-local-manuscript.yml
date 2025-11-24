@@ -12,11 +12,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo (no build)
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0   # get full history + tags
 
-      - name: Create GitHub release and upload manuscript files
-        uses: softprops/action-gh-release@v2
+      - run: git lfs pull   # ensure real zip data is present
+
+      - uses: softprops/action-gh-release@v2
         with:
           files: |
             _manuscript/index.qmd
