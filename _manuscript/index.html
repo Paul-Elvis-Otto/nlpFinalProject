@@ -187,10 +187,6 @@ window.Quarto = {
   <li><a href="#training-objective" id="toc-training-objective" class="nav-link" data-scroll-target="#training-objective">Training objective</a></li>
   <li><a href="#computational-considerations" id="toc-computational-considerations" class="nav-link" data-scroll-target="#computational-considerations">Computational considerations</a></li>
   </ul></li>
-  <li><a href="#implementation-details" id="toc-implementation-details" class="nav-link" data-scroll-target="#implementation-details">Implementation details</a>
-  <ul class="collapse">
-  <li><a href="#environment-and-reproducibility" id="toc-environment-and-reproducibility" class="nav-link" data-scroll-target="#environment-and-reproducibility">Environment and reproducibility</a></li>
-  </ul></li>
   <li><a href="#data-pipeline" id="toc-data-pipeline" class="nav-link" data-scroll-target="#data-pipeline">Data Pipeline</a>
   <ul class="collapse">
   <li><a href="#training-loop" id="toc-training-loop" class="nav-link" data-scroll-target="#training-loop">Training Loop</a></li>
@@ -202,11 +198,18 @@ window.Quarto = {
   </ul></li>
   <li><a href="#empirical-assessments" id="toc-empirical-assessments" class="nav-link" data-scroll-target="#empirical-assessments">Empirical Assessments</a>
   <ul class="collapse">
-  <li><a href="#bilstm" id="toc-bilstm" class="nav-link" data-scroll-target="#bilstm">BILSTM</a></li>
+  <li><a href="#bilstm" id="toc-bilstm" class="nav-link" data-scroll-target="#bilstm">BiLSTM</a></li>
+  <li><a href="#qualitative-analysis" id="toc-qualitative-analysis" class="nav-link" data-scroll-target="#qualitative-analysis">Qualitative Analysis</a></li>
   <li><a href="#naive-bayes-baseline" id="toc-naive-bayes-baseline" class="nav-link" data-scroll-target="#naive-bayes-baseline">Naive Bayes Baseline</a></li>
   <li><a href="#comparative-perspective" id="toc-comparative-perspective" class="nav-link" data-scroll-target="#comparative-perspective">Comparative perspective</a></li>
   </ul></li>
+  <li><a href="#limitations-and-possible-extensions" id="toc-limitations-and-possible-extensions" class="nav-link" data-scroll-target="#limitations-and-possible-extensions">Limitations and possible extensions</a>
+  <ul class="collapse">
+  <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations">Limitations</a></li>
+  <li><a href="#extensions" id="toc-extensions" class="nav-link" data-scroll-target="#extensions">Extensions</a></li>
+  </ul></li>
   <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
+  <li><a href="#external-sources-used" id="toc-external-sources-used" class="nav-link" data-scroll-target="#external-sources-used">External sources used</a></li>
   </ul>
 <div class="quarto-alternate-notebooks"><h2>Notebooks</h2><ul><li><a href="index-preview.html"><i class="bi bi-journal-code"></i>Article Notebook</a></li></ul></div></nav>
 </div>
@@ -221,9 +224,9 @@ window.Quarto = {
 
 <section id="intro" class="level2">
 <h2 class="anchored" data-anchor-id="intro">Intro</h2>
-<p>Classifying tweets is among the most common applications of machine learning. This project focuses on distinguishing whether a tweet from the 112th U.S. Congress was authored by a Democrat or a Republican. The dataset, sourced from the Harvard Dataverse, includes the text of each post, information on its author, party affiliation, and whether it originated from the House or the Senate.</p>
-<p>The classification task is carried out using a bidirectional LSTM model, described in detail in the model section. The model is trained from scratch without any pretraining, relying on pretrained embeddings imported via the MLX-Embeddings adaptation from huggingface. As a baseline, a naive Bayes classifier is implemented, and its performance is compared to the BiLSTM in the empirical assessment section.</p>
-<p>To provide a general overview of the data, an exploratory analysis is presented in <a href="#sec-eda" class="quarto-xref">Section&nbsp;3</a>. The dataset has also been cleaned and prepared specifically for the BiLSTM model, with the cleaning steps detailed in <a href="#sec-data-prep" class="quarto-xref">Section&nbsp;2</a>.</p>
+<p>Classifying short social-media texts is a standard NLP task and a useful testbed for comparing lexical and sequence-based models. This project predicts whether a tweet posted by a member of the 112th U.S. Congress was authored by a Democrat or a Republican. The dataset, sourced from Harvard Dataverse, contains each post’s text as well as metadata on the author’s party and chamber (House vs.&nbsp;Senate).</p>
+<p>The main model is a bidirectional LSTM classifier operating over contextual token embeddings. Instead of learning word representations from scratch, the pipeline uses a pretrained MiniLM Transformer as a frozen feature extractor (loaded via the MLX-Embeddings/Hugging Face adaptation). The BiLSTM and linear classification head are trained on top of these fixed embeddings. As a transparent baseline, a Multinomial Naive Bayes model with TF–IDF n-gram features is implemented on the same train/validation/test split, and its performance is compared to the BiLSTM in the empirical assessment section.</p>
+<p>To situate the task, an exploratory data analysis is presented in <a href="#sec-eda" class="quarto-xref">Section&nbsp;3</a>. The text preprocessing and label normalization used to construct the modeling dataset are described in <a href="#sec-data-prep" class="quarto-xref">Section&nbsp;2</a>.</p>
 </section>
 <section id="sec-data-prep" class="level2">
 <h2 class="anchored" data-anchor-id="sec-data-prep">Data Preparation</h2>
@@ -232,18 +235,20 @@ window.Quarto = {
 <li>Dates</li>
 <li>Mentions</li>
 <li>Hashtags</li>
+<li>URLs</li>
 </ul>
+<p>The data is read in already cleaned into the model pipeline.</p>
 </section>
 <section id="sec-eda" class="level2">
 <h2 class="anchored" data-anchor-id="sec-eda">EDA</h2>
 <p>This section provides an initial overview of the dataset by examining its basic structure and several descriptive metrics.</p>
 <p>The dataset has a dimension of 334606, 5. To begin, we look at how posts are distributed across chambers and parties. The overall distribution is visualized in <a href="#fig-post-dist" class="quarto-xref">Figure&nbsp;1</a>.</p>
-<div id="cell-fig-post-dist" class="cell">
+<div id="cell-fig-post-dist" class="cell" data-layout-align="center">
 <div class="cell-output-display">
-<div id="fig-post-dist" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div id="fig-post-dist" class="quarto-float quarto-figure quarto-figure-center anchored" data-fig-align="center">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-post-dist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<a href="index_files/figure-html/fig-post-dist-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Figure&nbsp;1: Distribution of posts by chamber and party"><img src="index_files/figure-html/fig-post-dist-1.png" class="img-fluid figure-img" width="672"></a>
+<a href="index_files/figure-html/fig-post-dist-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Figure&nbsp;1: Distribution of posts by chamber and party"><img src="index_files/figure-html/fig-post-dist-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" width="672"></a>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-post-dist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;1: Distribution of posts by chamber and party
@@ -734,31 +739,31 @@ Figure&nbsp;1: Distribution of posts by chamber and party
 </div>
 </div>
 <p>Next, the distribution of post lengths is examined. To limit the influence of outliers, the top one percent of longest posts are excluded:</p>
-<div class="cell">
+<div class="cell" data-layout-align="center">
 <div class="cell-output-display">
-<div>
+<div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><a href="index_files/figure-html/unnamed-chunk-2-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="index_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid figure-img" width="672"></a></p>
+<p><a href="index_files/figure-html/unnamed-chunk-2-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="index_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" width="672"></a></p>
 </figure>
 </div>
 </div>
 </div>
 <p>The dataset also allows identifying the most active members. The figure below displays the top five posters for each chamber–party combination:</p>
-<div class="cell">
+<div class="cell" data-layout-align="center">
 <div class="cell-output-display">
-<div>
+<div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><a href="index_files/figure-html/unnamed-chunk-3-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="index_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid figure-img" width="672"></a></p>
+<p><a href="index_files/figure-html/unnamed-chunk-3-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="index_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" width="672"></a></p>
 </figure>
 </div>
 </div>
 </div>
 <p>Finally, the most frequent words used by each party are explored. After tokenizing posts, removing stopwords, and excluding a small set of custom stop terms, the top twenty terms per party are identified:</p>
-<div class="cell">
+<div class="cell" data-layout-align="center">
 <div class="cell-output-display">
-<div>
+<div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><a href="index_files/figure-html/unnamed-chunk-4-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="index_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid figure-img" width="672"></a></p>
+<p><a href="index_files/figure-html/unnamed-chunk-4-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="index_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" width="672"></a></p>
 </figure>
 </div>
 </div>
@@ -808,7 +813,7 @@ Figure&nbsp;1: Distribution of posts by chamber and party
 </section>
 <section id="classification-head" class="level3">
 <h3 class="anchored" data-anchor-id="classification-head">Classification head</h3>
-<p>The pooled vector <span class="math inline">\mathbf{z}</span> serves as the input to the classification head. Regularization is applied via Dropout with probability <span class="math inline">p=0.2</span>:</p>
+<p>The pooled vector <span class="math inline">\mathbf{z}</span> serves as the input to the classification head. Regularization is applied via Dropout with probability <span class="math inline">p=0.1</span>:</p>
 <p><span id="eq-dropout"><span class="math display">
 \tilde{\mathbf{z}} = \text{Dropout}(\mathbf{z}).
 \tag{6}</span></span></p>
@@ -836,37 +841,39 @@ Figure&nbsp;1: Distribution of posts by chamber and party
 </ol>
 </section>
 </section>
-<section id="implementation-details" class="level2">
-<h2 class="anchored" data-anchor-id="implementation-details">Implementation details</h2>
-<section id="environment-and-reproducibility" class="level3">
-<h3 class="anchored" data-anchor-id="environment-and-reproducibility">Environment and reproducibility</h3>
-</section>
-</section>
 <section id="data-pipeline" class="level2">
 <h2 class="anchored" data-anchor-id="data-pipeline">Data Pipeline</h2>
 <p>The pipeline proceeds as:</p>
 <ul>
-<li>Read CSV and keep relevant columns (text and party label).</li>
-<li>Remove missing rows and normalize party strings.</li>
-<li>Map party strings into binary labels and filter all others.</li>
-<li>Stratified splitting into train/validation/test (80/10/10).</li>
-<li>Pre-tokenize each split to input IDs and masks.</li>
+<li>Read the cleaned CSV (<code>congress_complete.csv</code>) and keep the relevant columns (<code>post</code> and <code>party</code>).</li>
+<li>Drop rows with missing text or party labels.</li>
+<li>Normalize party strings and map them to binary labels (Democrat = 0, Republican = 1), discarding any other labels.</li>
+<li>Perform a stratified train/validation/test split with proportions 80/10/10 using a fixed random seed.</li>
+<li>During training and evaluation, tokenize <strong>on the fly</strong> per batch and pad/truncate to a fixed length (T=128).</li>
+<li>For each minibatch, pass token IDs and attention masks through a <strong>frozen, quantized MiniLM encoder</strong> to obtain contextual token embeddings. Gradients are stopped at this stage, so only the downstream BiLSTM is trained.</li>
+<li>Cast embeddings to <code>float16</code> to reduce memory use; keep attention masks to zero out padding tokens before recurrence and for masked mean pooling.</li>
 </ul>
-<p>Pre-tokenization on CPU in large minibatches amortizes tokenizer overhead and prevents GPU under-utilization during training.</p>
+<p>This design avoids storing large precomputed embedding tensors in RAM. Instead, embeddings are computed batch-wise and materialized with <code>mx.eval</code> so MLX graphs do not accumulate across iterations.</p>
 <section id="training-loop" class="level3">
 <h3 class="anchored" data-anchor-id="training-loop">Training Loop</h3>
-<p>The training routine iterates for 10 epochs. Each epoch consists of:</p>
+<p>The training routine runs for 10 epochs with a fixed batch size of 64. In each epoch:</p>
 <ul>
-<li>Forward pass with autocasting.</li>
-<li>Cross-entropy loss computation.</li>
-<li>Backward pass on scaled loss.</li>
-<li>AdamW parameter update.</li>
+<li><p>Set the model to training mode.</p></li>
+<li><p>Iterate over batches produced by <code>batch_iterate_text(..., drop_last=True)</code> so every training step has identical shape (required for <code>mx.compile</code>).</p></li>
+<li><p>For each batch:</p>
+<ul>
+<li>Compute logits with the BiLSTM classifier.</li>
+<li>Compute mean cross-entropy loss.</li>
+<li>Backpropagate to obtain gradients for the BiLSTM parameters.</li>
+<li>Update parameters using the <strong>Adam</strong> optimizer with learning rate (10^{-3}).</li>
+</ul></li>
+<li><p>After each epoch, switch to evaluation mode and compute validation loss and accuracy over the full validation split (<code>drop_last=False</code>).</p></li>
 </ul>
-<p>Model selection is based on validation accuracy; the best validation checkpoint is stored and reloaded before final test evaluation. DataLoaders use batch size <span class="math inline">256</span> with pinned memory and persistent workers for efficient host-device transfer.</p>
+<p>The training step is JIT-compiled via <code>mx.compile</code> for speed. There is no checkpointing or best-model reload in the current code; the reported test results come from the final epoch’s parameters.</p>
 </section>
 <section id="implementation-in-code" class="level3">
 <h3 class="anchored" data-anchor-id="implementation-in-code">Implementation in Code</h3>
-<p>The biLStM model has been in apples mlx framework to enable a bare metal run of the model on apple silicon hardware. The implementation has ben performd on top of the mlx framework provided <code>nn.Model</code> function.</p>
+<p>The biLStM model has been in apples mlx framework to enable a bare metal run of the model on apple silicon hardware. The implementation has ben performd on top of the mlx framework provided <code>nn.Module</code> function.</p>
 <p>for that a LSTM cell has been set up as follows</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LSTMCell(nn.Module):</span>
@@ -979,11 +986,11 @@ Figure&nbsp;1: Distribution of posts by chamber and party
 \tag{9}</span></span></p>
 <p>where each <span class="math inline">f_j</span> reflects the TF–IDF weight of term <span class="math inline">j</span> after vocabulary truncation and filtering. The vectorizer uses standard preprocessing settings for text classification:</p>
 <ul>
-<li>lowercasing,</li>
-<li>English stop-word removal,</li>
-<li>unigram and bigram features ((1,2)),</li>
-<li>a maximum feature cap of (d = 50{,}000),</li>
-<li>a minimum document frequency of (2).</li>
+<li>lowercasing</li>
+<li>English stop-word removal</li>
+<li>unigram and bigram features <span class="math inline">(1,2)</span></li>
+<li>a maximum feature cap of <span class="math inline">d = 50{,}000</span></li>
+<li>a minimum document frequency of <span class="math inline">2</span></li>
 </ul>
 <p>The classifier itself is a Multinomial Naive Bayes model, which assumes conditional independence of features given a class label <span class="math inline">y\in{0,1}</span>. Under this assumption, the likelihood of observing the feature vector <span class="math inline">\mathbf{f}(x)</span> given class <span class="math inline">k</span> factorizes as</p>
 <p><span id="eq-nb-likelihood"><span class="math display">
@@ -1007,24 +1014,24 @@ p(y=k)\prod_{j=1}^{d}\theta_{kj}^{, f_j(x)},
 </section>
 <section id="empirical-assessments" class="level2">
 <h2 class="anchored" data-anchor-id="empirical-assessments">Empirical Assessments</h2>
-<p>The following section will show the outcomes of the different test summaries of the used Models, bilstm, and naive bayes</p>
+<p>This section reports the empirical performance of the two main classifiers: the BiLSTM sequence model and the Naive Bayes baseline.</p>
 <section id="bilstm" class="level3">
-<h3 class="anchored" data-anchor-id="bilstm">BILSTM</h3>
+<h3 class="anchored" data-anchor-id="bilstm">BiLSTM</h3>
 <section id="headline-results" class="level4">
 <h4 class="anchored" data-anchor-id="headline-results">Headline results</h4>
-<p>On the test partition, the model achieves:</p>
+<p>On the held-out test partition, the BiLSTM achieves:</p>
 <p><span class="math display">
-\text{Test loss}=0.3307,\qquad
-\text{Test accuracy}=0.8635.
-</span></p>
-<p>The closeness of validation-selected performance and test performance indicates stable generalization without severe overfitting.</p>
+\text{Test loss} = 0.5229,\qquad
+\text{Test accuracy} = 0.7952.
+</span>{#ewq-bilstm-acc}</p>
+<p>Validation- and test-set performance are closely aligned, suggesting stable generalization without pronounced overfitting.</p>
 </section>
 <section id="class-wise-metrics" class="level4">
 <h4 class="anchored" data-anchor-id="class-wise-metrics">Class-wise metrics</h4>
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>Test-set classification report.</caption>
+<caption>BiLSTM: test-set classification report.</caption>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Class</th>
@@ -1074,66 +1081,81 @@ p(y=k)\prod_{j=1}^{d}\theta_{kj}^{, f_j(x)},
 </table>
 </div>
 </div>
-<p>Performance is stronger for class <span class="math inline">1</span>, consistent with its higher prevalence. The macro-averaged F<span class="math inline">_1</span> is slightly lower than the weighted average, reflecting imbalance-driven asymmetry.</p>
-<p>The overall Test accuracy is 0.7952075 and the overall Test loss 0.5228508.</p>
+<p>Performance is systematically stronger for class 1, which is also the majority class in the data and therefore this behaviour is somewhat expected. The macro-averaged <span class="math inline">F_1</span> is slightly lower than the weighted average, reflecting the impact of class imbalance on aggregate metrics.</p>
 </section>
 <section id="confusion-matrix-and-derived-rates" class="level4">
 <h4 class="anchored" data-anchor-id="confusion-matrix-and-derived-rates">Confusion matrix and derived rates</h4>
-<p><span class="math display">
-\mathbf{C}=
+<p>The test-set confusion matrix for the BiLSTM is:</p>
+<p><span id="eq-bilstm-conf-mat"><span class="math display">
+\mathbf{C} =
 \begin{pmatrix}
-8590 &amp; 4139\\
+8590 &amp; 4139 \\
 2681 &amp; 17892
 \end{pmatrix}.
-</span></p>
-<p>Key derived quantities (treating class <span class="math inline">1</span> as positive) are:</p>
-<p><span class="math display">
-\begin{align}
-\text{TPR (recall$_1$)} &amp;= \frac{18666}{18666+2025}=0.9021, \\
-\text{TNR (specificity)} &amp;= \frac{10226}{10226+2544}=0.8008, \\
-\text{FPR} &amp;= \frac{2544}{10226+2544}=0.1992, \\
-\text{FNR} &amp;= \frac{2025}{18666+2025}=0.0979, \\
-\text{Balanced accuracy} &amp;= \frac{0.9021+0.8008}{2}=0.8515, \\
-\text{MCC} &amp;= 0.7088.
-\end{align}
-</span></p>
+\tag{13}</span></span></p>
+<p>Treating class 1 as the positive class, the following quantities are obtained:</p>
+<p><span id="eq-bilstm-derived-metrics"><span class="math display">
+\begin{aligned}
+\text{TPR (recall$_1$)} &amp;= \frac{17892}{17892+2681}=0.8697, \\
+\text{TNR (specificity)} &amp;= \frac{8590}{8590+4139}=0.6748, \\
+\text{FPR} &amp;= \frac{4139}{8590+4139}=0.3252, \\
+\text{FNR} &amp;= \frac{2681}{17892+2681}=0.1303, \\
+\text{Balanced accuracy} &amp;= \frac{0.8697+0.6748}{2}=0.7723, \\
+\text{MCC} &amp;= 0.5592.
+\end{aligned}
+\tag{14}</span></span></p>
 </section>
 <section id="error-profile" class="level4">
 <h4 class="anchored" data-anchor-id="error-profile">Error profile</h4>
-<p>Inspection of the confusion matrix suggests two dominant error types:</p>
+<p>The confusion matrix indicates two main error patterns:</p>
 <ul>
-<li><p>Class-0 <span class="math inline">\rightarrow</span> Class-1 errors (2544 cases) likely driven by lexical overlap or stylistic convergence in the two parties’ rhetoric, aggravated by class imbalance.</p></li>
-<li><p>Class-1 <span class="math inline">\rightarrow</span> Class-0 errors (2025 cases) fewer and may correspond to moderate or cross-partisan language patterns.</p></li>
+<li><p><strong>Class 0 → Class 1</strong>: A comparatively large number of false positives (items from class 0 predicted as class 1) likely arises from shared lexical or stylistic features between the two parties, amplified by class imbalance which then leads to a bigger set of possible patterns are beeing labeled as class 1.</p></li>
+<li><p><strong>Class 1 → Class 0</strong>: Fewer false negatives for class 1, which may correspond to more moderate or cross-partisan language that is less prototypical of the majority class.</p></li>
 </ul>
-<p>The false-positive rate is roughly twice the false-negative rate, indicating that the classifier is more inclined to assign class 1 to items belonging to class 0 than the reverse. In scenarios where asymmetric error costs matter, this imbalance could be mitigated through threshold tuning, class-weighted loss functions, or calibration techniques.</p>
+<p>The false-positive rate is roughly twice the false-negative rate, implying that the classifier tends to err toward predicting class 1. In applications with asymmetric error costs, this tendency could be counteracted by threshold adjustment, class-weighted loss functions, or post-hoc calibration.</p>
+<p>The distribution of posts lengths does not have an impact on the error profile as throughout the dataset the post length distribution is similar across classes as shown in <a href="#sec-eda" class="quarto-xref">Section&nbsp;3</a> .</p>
+</section>
+</section>
+<section id="qualitative-analysis" class="level3">
+<h3 class="anchored" data-anchor-id="qualitative-analysis">Qualitative Analysis</h3>
+<p>To show the qualitative implications of the model a sample of posts is classified here.</p>
+<section id="single-words" class="level4">
+<h4 class="anchored" data-anchor-id="single-words">Single words</h4>
+<p>The model is given a list of the most comon english words and their predicted probabilities for each class. The results are visualized in <a href="#fig-word-bias" class="quarto-xref">Figure&nbsp;2</a>, which plots the margin (p_dem − p_repub) for each word against its rank in the sorted list. Points are colored by margin and sized by confidence (maximum predicted probability). The twenty most extreme words on either end of the spectrum are labeled.</p>
+<div id="cell-fig-word-bias" class="cell" data-layout-align="center">
+<div class="cell-output-display">
+<div id="fig-word-bias" class="quarto-float quarto-figure quarto-figure-center anchored" data-fig-align="center">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-word-bias-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/fig-word-bias-1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="Figure&nbsp;2: Model bias on common words"><img src="index_files/figure-html/fig-word-bias-1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" width="672"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-word-bias-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Model bias on common words
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>As Figure <a href="#fig-word-bias" class="quarto-xref">Figure&nbsp;2</a> indicates, the classifier shows pronounced partisan leanings even when evaluated on isolated tokens.</p>
+<p>A natural next step is to test whether this behavior is stable over time. In particular, one could examine whether applying the model to contemporary Republican and Democratic posts changes its performance, given well-documented shifts in political communication and issue framing over recent years.</p>
 </section>
 </section>
 <section id="naive-bayes-baseline" class="level3">
 <h3 class="anchored" data-anchor-id="naive-bayes-baseline">Naive Bayes Baseline</h3>
-<p>Evaluated on the held-out test set, the Naive Bayes classifier achieves an accuracy of</p>
-<p><span class="math display">
-\text{Test accuracy} = 0.8447.
-</span></p>
-<p>This performance is slightly below that of the BiLSTM model yet remains strong given its simplicity and lack of contextual or sequential modeling.</p>
-<p>A detailed breakdown of class-wise test metrics is as follows:</p>
-<ul>
-<li><p><strong>Class 0</strong> (Democrat) precision: (0.8258), recall: (0.7517), F1: (0.7870), support: (12{,}770)</p></li>
-<li><p><strong>Class 1</strong> (Republican) precision: (0.8548), recall: (0.9021), F1: (0.8778), support: (20{,}691)</p></li>
-</ul>
-<p>The model shows a pronounced asymmetry: recall for class 1 is high (0.9021), whereas class-0 recall is comparatively low (0.7517). This indicates a stronger tendency to classify documents as class 1, consistent with the underlying class imbalance and the linear nature of the decision boundary.</p>
-<p>The test confusion matrix <span class="math display">
-\begin{pmatrix}
-9599 &amp; 3171 \
-2025 &amp; 18666
-\end{pmatrix}
-</span></p>
-<p>reveals that false positives for class 1 (3171 cases) are moderately higher than in the BiLSTM model. False negatives for class 1 (2025 cases) are identical for both models, an artifact of the fixed data split.</p>
-<p>Overall, the Naive Bayes baseline provides a meaningful reference point: it captures strong lexical signals and performs well with minimal computational cost, yet falls short of the sequence model in reducing class-specific error rates and balancing performance across labels.</p>
-<p>the model can be evaluated as follows:</p>
+<section id="headline-results-1" class="level4">
+<h4 class="anchored" data-anchor-id="headline-results-1">Headline results</h4>
+<p>As a bag-of-words baseline, the Naive Bayes classifier attains the following accuracy on the test set:</p>
+<p><span id="eq-nb-acc"><span class="math display">
+\text{Test accuracy} = 0.7843
+\tag{15}</span></span></p>
+<p>Given its simplicity and lack of contextual or sequential modeling, this level of performance is comparatively strong, but still below that of the BiLSTM.</p>
+</section>
+<section id="class-wise-metrics-1" class="level4">
+<h4 class="anchored" data-anchor-id="class-wise-metrics-1">Class-wise metrics</h4>
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>Test-set classification report.</caption>
+<caption>Naive Bayes: test-set classification report.</caption>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Class</th>
@@ -1183,11 +1205,23 @@ p(y=k)\prod_{j=1}^{d}\theta_{kj}^{, f_j(x)},
 </table>
 </div>
 </div>
+<p>As with the BiLSTM, performance is higher for class 1 than for class 0. Precision and recall for class 1 are clearly stronger, indicating a tendency to assign documents to the majority class and to capture its lexical cues more reliably.</p>
+</section>
+<section id="confusion-matrix-and-error-profile" class="level4">
+<h4 class="anchored" data-anchor-id="confusion-matrix-and-error-profile">Confusion matrix and error profile</h4>
+<p>The corresponding test-set confusion matrix for the Naive Bayes classifier is</p>
+<p><span id="eq-nb-conf-mat"><span class="math display">
+\begin{pmatrix}
+9599 &amp; 3171 \\
+2025 &amp; 18666
+\end{pmatrix}.
+\tag{16}</span></span></p>
+<p>False positives for class 1 (3171 cases) are moderately more frequent than in the BiLSTM. Overall, the baseline captures strong lexical signals at low computational cost but offers less balanced performance across classes than the sequence model.</p>
+</section>
 </section>
 <section id="comparative-perspective" class="level3">
 <h3 class="anchored" data-anchor-id="comparative-perspective">Comparative perspective</h3>
-<p>To analyse whether there is a improvement of the BiLSTM over the Naive Bayes model, a side-by-side comparison of key metrics in <a href="#tbl-comp" class="quarto-xref">Table&nbsp;1</a> is presented</p>
-<p>A BiLSTM with masked pooling forms a strong sequential baseline, especially when combined with pretrained subword embeddings. Pretrained embeddings provide stable lexical and subword representations, reducing the burden on the model to learn low-level statistics from scratch. However, these embeddings are not contextual: they do not adapt representations based on surrounding tokens. As a result, the model cannot capture the full range of contextual nuances that transformer-based encoders provide. The observed performance suggests that pretrained embeddings are beneficial, but the absence of contextualization imposes an upper bound compared with modern transformer architectures.</p>
+<p>To assess whether the BiLSTM improves upon the Naive Bayes baseline in a systematic way, a side-by-side comparison of key metrics is provided in <a href="#tbl-comp" class="quarto-xref">Table&nbsp;1</a>. The BiLSTM offers modest gains in overall accuracy and more favorable error balance across classes, while the Naive Bayes classifier remains a competitive and interpretable lexical baseline.</p>
 <div class="cell">
 <div id="tbl-comp" class="cell quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-tbl figure">
@@ -1752,9 +1786,32 @@ Naive Bayes
 </div>
 </section>
 </section>
+<section id="limitations-and-possible-extensions" class="level2">
+<h2 class="anchored" data-anchor-id="limitations-and-possible-extensions">Limitations and possible extensions</h2>
+<section id="limitations" class="level3">
+<h3 class="anchored" data-anchor-id="limitations">Limitations</h3>
+<p>The primary constraint of the current model is its reliance on frozen feature extraction. Because the Transformer <span class="math inline">\mathcal{F}</span> functions purely as a static input generator with stop-gradient operations, the embedding space is unable to adapt to the specific political vernacular of the congressional dataset during backpropagation. This lack of domain adaptation is compounded by precision limitations; the utilization of a 4-bit quantized Transformer and the subsequent casting of embeddings to <code>float16</code> introduces quantization noise that, while efficient, may discard subtle semantic distinctions found in full-precision representations. Furthermore, the architecture exhibits potential redundancy by stacking a BiLSTM on top of a powerful contextual encoder. Since the MiniLM Transformer already captures long-range dependencies via self-attention, the addition of recurrence introduces a sequential bottleneck without necessarily increasing modeling capacity significantly. Finally, the masked mean pooling strategy treats all valid tokens as equally important, a simplification that risks diluting strong, localized discriminative signals within longer posts.</p>
+</section>
+<section id="extensions" class="level3">
+<h3 class="anchored" data-anchor-id="extensions">Extensions</h3>
+<p>To address these limitations, several architectural and training modifications could be implemented. A significant performance boost could be achieved through end-to-end fine-tuning, where the Transformer layers are unfrozen to allow gradients to flow through <span class="math inline">\mathcal{F}</span>. To manage the memory overhead of this approach on Apple Silicon, techniques such as Low-Rank Adaptation (LoRA) could be employed to fine-tune the encoder efficiently. Alternatively, efficiency could be prioritized by moving to a Transformer-only architecture, removing the BiLSTM layer entirely and projecting the Transformer’s <code>[CLS]</code> token directly to the classification head; this would simplify the compute graph and eliminate the sequential dependency. Regarding feature aggregation, replacing mean pooling with a learnable attention mechanism would allow the model to weigh informative keywords more heavily than neutral connective text. Finally, while the current model truncates inputs at 128 tokens, implementing a sliding window approach or utilizing the full 512-token capacity of MiniLM would better capture tail-end context in lengthy statements.</p>
+</section>
+</section>
 <section id="conclusion" class="level2">
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
-<p>The implemented pipeline offers a computationally efficient neural baseline for binary party attribution in political texts. By combining subword token IDs with trainable embeddings and a BiLSTM encoder, the system captures sequential patterns and achieves solid test performance (accuracy <span class="math inline">0.8635</span>, MCC <span class="math inline">0.7088</span>). Evaluation reveals a mild bias toward predicting the majority class, visible in an elevated false-positive rate for class <span class="math inline">0</span>. The model’s simplicity, GPU-friendly batching, and stable selection via validation accuracy make it a robust starting point. Future work should focus on incorporating pretrained contextual representations and imbalance-aware objectives to further improve minority-class recall and overall calibration.</p>
+<p>The implemented pipeline offers a computationally efficient neural baseline for binary party attribution in political texts. By combining subword token IDs with frozen embeddings and a BiLSTM encoder, the system captures sequential patterns and achieves solid test performance. Evaluation reveals a mild bias toward predicting the majority class, visible in an elevated false-positive rate for class <span class="math inline">0</span>.</p>
+</section>
+<section id="external-sources-used" class="level2">
+<h2 class="anchored" data-anchor-id="external-sources-used">External sources used</h2>
+<ul>
+<li><p><a href="https://gist.githubusercontent.com/deekayen/4148741/raw/98d35708fa344717d8eee15d11987de6c8e26d7d/1-1000.txt">list of most common english words</a></p></li>
+<li><p><a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi%3A10.7910%2FDVN%2FBOK1CF&amp;utm_source=chatgpt.com">Dataset</a></p></li>
+<li><p><a href="https://github.com/Blaizzy/mlx-embeddings">MLX-Embeddings repo</a></p></li>
+<li><p><a href="https://github.com/ml-explore/mlx">MLX Repositories</a></p></li>
+<li><p><a href="https://github.com/abeleinin/mlx-xLSTM">MLX Implementation of xLSTM</a></p></li>
+<li><p><a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.LSTM.html">Pytorch implementaino of LSTM</a></p></li>
+</ul>
+<div style="page-break-after: always;"></div>
 </section>
 
 </main>

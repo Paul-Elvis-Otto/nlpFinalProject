@@ -1,0 +1,25 @@
+name: Publish local manuscript artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (no build)
+        uses: actions/checkout@v4
+
+      - name: Create GitHub release and upload manuscript files
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            _manuscript/index.qmd
+            _manuscript/index.pdf
+            _manuscript/*.zip
+          generate_release_notes: true

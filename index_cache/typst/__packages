@@ -6,3 +6,5 @@ tibble
 knitr
 tidyr
 gt
+readr
+ggrepel

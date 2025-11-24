@@ -7,3 +7,11 @@ gt
 knitr
 gtExtras
 tidyr
+tidyverse
+readr
+purrr
+forcats
+lubridate
+fs
+scales
+ggrepel
